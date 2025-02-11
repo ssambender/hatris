@@ -13,13 +13,28 @@ GRID_SIZE = 16  # 16x16 grid, each block is 2x2 pixels
 BLOCK_SIZE = 2  # Each block is 2x2 pixels
 
 # Define colors
-red = graphics.create_pen(255, 0, 0)
+yellow = graphics.create_pen(255, 255, 0)
+teal = graphics.create_pen(0, 255, 255)
 green = graphics.create_pen(0, 255, 0)
-blue = graphics.create_pen(0, 0, 255)
+red = graphics.create_pen(255, 0, 0)
+orange = graphics.create_pen(255, 150, 0)
+purple = graphics.create_pen(150, 100, 255)
+pink = graphics.create_pen(255, 0, 255)
 empty = graphics.create_pen(0, 0, 0)
 
 # Initialize grid (0 = empty, 1 = occupied)
 grid = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+
+# Define Tetris shapes with colors
+shapes = [
+    ([(0,0), (1,0), (0,1), (1,1)], yellow),  # O
+    ([(0,0), (0,1), (0,2), (0,3)], teal),  # I
+    ([(1,0), (2,0), (0,1), (1,1)], green),  # S
+    ([(0,0), (1,0), (1,1), (2,1)], red),  # Z
+    ([(0,0), (0,1), (0,2), (1,2)], orange),  # L
+    ([(1,0), (1,1), (1,2), (0,2)], purple),  # J
+    ([(1,0), (0,1), (1,1), (2,1)], pink)  # T
+]
 
 def draw_block(x, y, color):
     """Draw a 2x2 block at grid (x, y)."""
@@ -36,13 +51,10 @@ def draw_grid():
             color = red if grid[y][x] == 1 else empty
             draw_block(x, y, color)
 
-# Define a piece (Square shape for now)
-current_piece = {"x": GRID_SIZE // 2, "y": 0, "shape": [(0,0), (1,0), (0,1), (1,1)]}
-
 def draw_piece():
     """Draws the current falling piece."""
     for x, y in current_piece["shape"]:
-        draw_block(current_piece["x"] + x, current_piece["y"] + y, green)
+        draw_block(current_piece["x"] + x, current_piece["y"] + y, current_piece["color"])
 
 # Set brightness
 cu.set_brightness(0.5)
@@ -72,15 +84,31 @@ def move_down():
         lock_piece()
         spawn_new_piece()
 
+def drop_piece():
+    """Drops the piece instantly until it collides."""
+    while not check_collision(dy=1):
+        current_piece["y"] += 1
+    lock_piece()
+    spawn_new_piece()
+
 def lock_piece():
     """Locks the current piece in the grid and marks the occupied spaces."""
     for x, y in current_piece["shape"]:
         grid[current_piece["y"] + y][current_piece["x"] + x] = 1
 
 def spawn_new_piece():
-    """Spawns a new piece at the top."""
+    """Spawns a new random piece at the top."""
     global current_piece
-    current_piece = {"x": GRID_SIZE // 2, "y": 0, "shape": [(0,0), (1,0), (0,1), (1,1)]}
+    shape, color = random.choice(shapes)
+    current_piece = {
+        "x": GRID_SIZE // 2 - 1,
+        "y": 0,
+        "shape": shape,
+        "color": color
+    }
+
+# Spawn the first piece
+spawn_new_piece()
 
 last_move_time = time.ticks_ms()
 
@@ -96,6 +124,8 @@ while True:
         move_left()
     if cu.is_pressed(CosmicUnicorn.SWITCH_B):
         move_right()
+    if cu.is_pressed(CosmicUnicorn.SWITCH_D):
+        drop_piece()
     
     # Apply gravity every 500ms
     if time.ticks_ms() - last_move_time > 500:
