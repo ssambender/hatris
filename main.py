@@ -20,7 +20,6 @@ last_move_time_left = 0
 last_move_time_right = 0
 MOVE_DEBOUNCE_TIME = 150
 
-# HUGE: 8,4 | LARGE: 16,2 | SMALL: 32,1
 GRID_SIZE = 16
 BLOCK_SIZE = 2
 
@@ -35,7 +34,7 @@ pink = graphics.create_pen(255, 0, 255)
 empty = graphics.create_pen(0, 0, 0)
 
 # Initialize grid (0 = empty, 1 = occupied)
-grid = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+grid = [[empty for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
 # Define Tetris shapes with colors
 shapes = [
@@ -79,7 +78,7 @@ def check_collision(dx=0, dy=0):
         if new_x < 0 or new_x >= GRID_SIZE or new_y >= GRID_SIZE:
             return True  # Out of bounds collision
         # Check for collision with non-empty space (any color other than empty)
-        if grid[new_y][new_x] != empty:
+        if new_y >= 0 and grid[new_y][new_x] != empty:
             return True
     return False
 
@@ -87,60 +86,47 @@ def rotate_piece():
     """Rotates the current piece by 90 degrees around its center, ensuring it stays in place."""
     global current_piece
     
-    # Find the center of the piece (bounding box approach)
     min_x = min(x for x, y in current_piece["shape"])
     min_y = min(y for x, y in current_piece["shape"])
     max_x = max(x for x, y in current_piece["shape"])
     max_y = max(y for x, y in current_piece["shape"])
 
-    # The center of the shape is the midpoint of the bounding box
     center_x = min_x + (max_x - min_x) // 2
     center_y = min_y + (max_y - min_y) // 2
     
-    # Rotate the shape by 90 degrees around the center
     rotated_shape = []
     for x, y in current_piece["shape"]:
-        # Translate point to origin (center), rotate, and translate back
         new_x = center_y - y + center_x
         new_y = x - center_x + center_y
         rotated_shape.append((new_x, new_y))
 
-    # Save the current shape to check for collision
     original_shape = current_piece["shape"]
     current_piece["shape"] = rotated_shape
     
-    # Check for collision after rotation
     if check_collision():
-        # If there's a collision, revert to the original shape
         current_piece["shape"] = original_shape
     else:
-        # If no collision, check if the new piece is out of bounds
-        # Ensure that the piece doesn't go out of bounds after rotation
-        # Align the piece back to the screen if necessary
         min_x_rot = min(x for x, y in current_piece["shape"])
         if min_x_rot < 0:
-            # Shift the piece to the right if it goes out of bounds
             offset = abs(min_x_rot)
             current_piece["shape"] = [(x + offset, y) for x, y in current_piece["shape"]]
         
-        # Final check for collision after adjustment
         if check_collision():
             current_piece["shape"] = original_shape
-
 
 def move_left():
     global last_move_time_left
     if time.ticks_ms() - last_move_time_left > MOVE_DEBOUNCE_TIME:
         if not check_collision(dx=-1):
             current_piece["x"] -= 1
-        last_move_time_left = time.ticks_ms()  # Update the last move time
+        last_move_time_left = time.ticks_ms()
 
 def move_right():
     global last_move_time_right
     if time.ticks_ms() - last_move_time_right > MOVE_DEBOUNCE_TIME:
         if not check_collision(dx=1):
             current_piece["x"] += 1
-        last_move_time_right = time.ticks_ms()  # Update the last move time
+        last_move_time_right = time.ticks_ms()
 
 def move_down():
     """Moves the piece down if it hasn't reached the bottom or another piece."""
@@ -155,33 +141,31 @@ def handle_rotate():
     global last_rotate_time
     if time.ticks_ms() - last_rotate_time > ROTATE_DEBOUNCE_TIME:
         rotate_piece()
-        last_rotate_time = time.ticks_ms()  # Update the last rotate time
+        last_rotate_time = time.ticks_ms()
 
 def drop_piece():
     """Drops the piece instantly until it collides, with debounce."""
     global last_drop_time
-    if time.ticks_ms() - last_drop_time > DEBOUNCE_TIME:  # Check if enough time has passed
+    if time.ticks_ms() - last_drop_time > DEBOUNCE_TIME:
         while not check_collision(dy=1):
             current_piece["y"] += 1
         lock_piece()
         spawn_new_piece()
-        last_drop_time = time.ticks_ms()  # Update the last drop time
+        last_drop_time = time.ticks_ms()
 
 def clear_full_rows():
-    """Clears full rows and shifts the rows above down."""
-    global grid
+    """Clears full rows, shifts the rows above down, and updates the score."""
+    global grid, total_points
     rows_to_clear = []
     
-    # Check for full rows
     for y in range(GRID_SIZE):
         if all(grid[y][x] != empty for x in range(GRID_SIZE)):
             rows_to_clear.append(y)
     
-    # Clear the full rows and shift rows down
     for row in rows_to_clear:
         del grid[row]
         grid.insert(0, [empty for _ in range(GRID_SIZE)])
-
+        total_points += 1
 
 def lock_piece():
     """Locks the current piece in the grid and marks the occupied spaces with its color."""
@@ -189,7 +173,7 @@ def lock_piece():
         grid[current_piece["y"] + y][current_piece["x"] + x] = current_piece["color"]
     
     clear_full_rows()
-    
+
 def spawn_new_piece():
     """Spawns a new random piece at the top."""
     global current_piece
@@ -201,17 +185,34 @@ def spawn_new_piece():
         "color": color
     }
 
+def reset_game():
+    global grid, total_points
+    grid = [[empty for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+    total_points = 0
+    spawn_new_piece()
+
+def check_game_over():
+    return any(grid[0][x] != empty for x in range(GRID_SIZE))
+
 # Spawn the first piece
 spawn_new_piece()
 
 last_move_time = time.ticks_ms()
 
+graphics.set_font("bitmap8")
+def display_score():
+    graphics.set_pen(graphics.create_pen(255, 255, 255))  # White color for the text
+    graphics.text(f"{total_points}", 1, 1, scale=1)
+
 while True:
     graphics.clear()
-    
+
     # Draw grid and current piece
     draw_grid()
     draw_piece()
+
+    # Display the score
+    display_score()
 
     # Button movement logic
     if cu.is_pressed(CosmicUnicorn.SWITCH_A):
@@ -222,12 +223,17 @@ while True:
         handle_rotate()
     if cu.is_pressed(CosmicUnicorn.SWITCH_D):
         drop_piece()
-    
+
     # Apply gravity every 500ms
     if time.ticks_ms() - last_move_time > 500:
         move_down()
         last_move_time = time.ticks_ms()
-    
+
+    # Check for game over
+    if check_game_over():
+        reset_game()
+
     cu.update(graphics)
     time.sleep(0.05)
+
 
