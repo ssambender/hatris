@@ -9,6 +9,9 @@ graphics = PicoGraphics(DISPLAY)
 width = CosmicUnicorn.WIDTH
 height = CosmicUnicorn.HEIGHT
 
+last_drop_time = 0  # Store the last time the drop button was pressed
+DEBOUNCE_TIME = 300  # 300ms debounce period
+
 GRID_SIZE = 16  # 16x16 grid, each block is 2x2 pixels
 BLOCK_SIZE = 2  # Each block is 2x2 pixels
 
@@ -48,7 +51,7 @@ def draw_grid():
     """Draws the entire grid based on stored values."""
     for y in range(GRID_SIZE):
         for x in range(GRID_SIZE):
-            color = red if grid[y][x] == 1 else empty
+            color = grid[y][x]  # Color is now the color stored in the grid
             draw_block(x, y, color)
 
 def draw_piece():
@@ -64,7 +67,10 @@ def check_collision(dx=0, dy=0):
     for x, y in current_piece["shape"]:
         new_x = current_piece["x"] + x + dx
         new_y = current_piece["y"] + y + dy
-        if new_x < 0 or new_x >= GRID_SIZE or new_y >= GRID_SIZE or grid[new_y][new_x] == 1:
+        if new_x < 0 or new_x >= GRID_SIZE or new_y >= GRID_SIZE:
+            return True  # Out of bounds collision
+        # Check for collision with non-empty space (any color other than empty)
+        if grid[new_y][new_x] != empty:
             return True
     return False
 
@@ -85,16 +91,19 @@ def move_down():
         spawn_new_piece()
 
 def drop_piece():
-    """Drops the piece instantly until it collides."""
-    while not check_collision(dy=1):
-        current_piece["y"] += 1
-    lock_piece()
-    spawn_new_piece()
+    """Drops the piece instantly until it collides, with debounce."""
+    global last_drop_time
+    if time.ticks_ms() - last_drop_time > DEBOUNCE_TIME:  # Check if enough time has passed
+        while not check_collision(dy=1):
+            current_piece["y"] += 1
+        lock_piece()
+        spawn_new_piece()
+        last_drop_time = time.ticks_ms()  # Update the last drop time
 
 def lock_piece():
-    """Locks the current piece in the grid and marks the occupied spaces."""
+    """Locks the current piece in the grid and marks the occupied spaces with its color."""
     for x, y in current_piece["shape"]:
-        grid[current_piece["y"] + y][current_piece["x"] + x] = 1
+        grid[current_piece["y"] + y][current_piece["x"] + x] = current_piece["color"]
 
 def spawn_new_piece():
     """Spawns a new random piece at the top."""
