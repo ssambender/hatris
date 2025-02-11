@@ -46,6 +46,7 @@ shapes = [
     ([(1,0), (1,1), (1,2), (0,2)], purple),  # J
     ([(1,0), (0,1), (1,1), (2,1)], pink)  # T
 ]
+next_piece = None
 
 def draw_block(x, y, color):
     """Draw a 2x2 block at grid (x, y)."""
@@ -175,15 +176,32 @@ def lock_piece():
     clear_full_rows()
 
 def spawn_new_piece():
-    """Spawns a new random piece at the top."""
-    global current_piece
-    shape, color = random.choice(shapes)
+    """Spawns a new piece and generates the next piece."""
+    global current_piece, next_piece
+    if next_piece is None:
+        shape, color = random.choice(shapes)
+        next_piece = {"shape": shape, "color": color}
+    
     current_piece = {
         "x": GRID_SIZE // 2 - 1,
         "y": 0,
-        "shape": shape,
-        "color": color
+        "shape": next_piece["shape"],
+        "color": next_piece["color"]
     }
+    
+    # Generate the next piece
+    shape, color = random.choice(shapes)
+    next_piece = {"shape": shape, "color": color}
+
+def draw_next_piece():
+    """Draws the next piece in the top right corner."""
+    if next_piece:
+        # Calculate the position for the next piece preview
+        preview_x = GRID_SIZE - 3  # 4 blocks from the right edge
+        preview_y = 1  # 1 block from the top
+        
+        for x, y in next_piece["shape"]:
+            draw_block(preview_x + x, preview_y + y, next_piece["color"])
 
 def reset_game():
     global grid, total_points
@@ -210,8 +228,11 @@ while True:
     # Draw grid and current piece
     draw_grid()
     draw_piece()
-
-    # Display the score
+    
+    # OPTIONAL: Display next piece preview
+    draw_next_piece()
+    
+    # OPTIONAL: Display score (lines cleared)
     display_score()
 
     # Button movement logic
