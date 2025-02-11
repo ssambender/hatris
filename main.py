@@ -11,6 +11,8 @@ height = CosmicUnicorn.HEIGHT
 
 last_drop_time = 0  # Store the last time the drop button was pressed
 DEBOUNCE_TIME = 300  # 300ms debounce period
+last_rotate_time = 0  # Store the last time the rotate button was pressed
+ROTATE_DEBOUNCE_TIME = 300  # 300ms debounce period for rotate
 
 GRID_SIZE = 16  # 16x16 grid, each block is 2x2 pixels
 BLOCK_SIZE = 2  # Each block is 2x2 pixels
@@ -74,6 +76,51 @@ def check_collision(dx=0, dy=0):
             return True
     return False
 
+def rotate_piece():
+    """Rotates the current piece by 90 degrees around its center, ensuring it stays in place."""
+    global current_piece
+    
+    # Find the center of the piece (bounding box approach)
+    min_x = min(x for x, y in current_piece["shape"])
+    min_y = min(y for x, y in current_piece["shape"])
+    max_x = max(x for x, y in current_piece["shape"])
+    max_y = max(y for x, y in current_piece["shape"])
+
+    # The center of the shape is the midpoint of the bounding box
+    center_x = min_x + (max_x - min_x) // 2
+    center_y = min_y + (max_y - min_y) // 2
+    
+    # Rotate the shape by 90 degrees around the center
+    rotated_shape = []
+    for x, y in current_piece["shape"]:
+        # Translate point to origin (center), rotate, and translate back
+        new_x = center_y - y + center_x
+        new_y = x - center_x + center_y
+        rotated_shape.append((new_x, new_y))
+
+    # Save the current shape to check for collision
+    original_shape = current_piece["shape"]
+    current_piece["shape"] = rotated_shape
+    
+    # Check for collision after rotation
+    if check_collision():
+        # If there's a collision, revert to the original shape
+        current_piece["shape"] = original_shape
+    else:
+        # If no collision, check if the new piece is out of bounds
+        # Ensure that the piece doesn't go out of bounds after rotation
+        # Align the piece back to the screen if necessary
+        min_x_rot = min(x for x, y in current_piece["shape"])
+        if min_x_rot < 0:
+            # Shift the piece to the right if it goes out of bounds
+            offset = abs(min_x_rot)
+            current_piece["shape"] = [(x + offset, y) for x, y in current_piece["shape"]]
+        
+        # Final check for collision after adjustment
+        if check_collision():
+            current_piece["shape"] = original_shape
+
+
 def move_left():
     if not check_collision(dx=-1):
         current_piece["x"] -= 1
@@ -89,6 +136,13 @@ def move_down():
     else:
         lock_piece()
         spawn_new_piece()
+
+def handle_rotate():
+    """Handles the rotate action with debounce."""
+    global last_rotate_time
+    if time.ticks_ms() - last_rotate_time > ROTATE_DEBOUNCE_TIME:
+        rotate_piece()
+        last_rotate_time = time.ticks_ms()  # Update the last rotate time
 
 def drop_piece():
     """Drops the piece instantly until it collides, with debounce."""
@@ -133,6 +187,8 @@ while True:
         move_left()
     if cu.is_pressed(CosmicUnicorn.SWITCH_B):
         move_right()
+    if cu.is_pressed(CosmicUnicorn.SWITCH_C):
+        handle_rotate()
     if cu.is_pressed(CosmicUnicorn.SWITCH_D):
         drop_piece()
     
