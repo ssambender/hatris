@@ -9,13 +9,20 @@ graphics = PicoGraphics(DISPLAY)
 width = CosmicUnicorn.WIDTH
 height = CosmicUnicorn.HEIGHT
 
-last_drop_time = 0  # Store the last time the drop button was pressed
-DEBOUNCE_TIME = 300  # 300ms debounce period
-last_rotate_time = 0  # Store the last time the rotate button was pressed
-ROTATE_DEBOUNCE_TIME = 300  # 300ms debounce period for rotate
+total_points = 0
 
-GRID_SIZE = 16  # 16x16 grid, each block is 2x2 pixels
-BLOCK_SIZE = 2  # Each block is 2x2 pixels
+last_drop_time = 0
+DEBOUNCE_TIME = 300
+last_rotate_time = 0
+ROTATE_DEBOUNCE_TIME = 300
+
+last_move_time_left = 0
+last_move_time_right = 0
+MOVE_DEBOUNCE_TIME = 150
+
+# HUGE: 8,4 | LARGE: 16,2 | SMALL: 32,1
+GRID_SIZE = 16
+BLOCK_SIZE = 2
 
 # Define colors
 yellow = graphics.create_pen(255, 255, 0)
@@ -122,12 +129,18 @@ def rotate_piece():
 
 
 def move_left():
-    if not check_collision(dx=-1):
-        current_piece["x"] -= 1
+    global last_move_time_left
+    if time.ticks_ms() - last_move_time_left > MOVE_DEBOUNCE_TIME:
+        if not check_collision(dx=-1):
+            current_piece["x"] -= 1
+        last_move_time_left = time.ticks_ms()  # Update the last move time
 
 def move_right():
-    if not check_collision(dx=1):
-        current_piece["x"] += 1
+    global last_move_time_right
+    if time.ticks_ms() - last_move_time_right > MOVE_DEBOUNCE_TIME:
+        if not check_collision(dx=1):
+            current_piece["x"] += 1
+        last_move_time_right = time.ticks_ms()  # Update the last move time
 
 def move_down():
     """Moves the piece down if it hasn't reached the bottom or another piece."""
@@ -154,11 +167,29 @@ def drop_piece():
         spawn_new_piece()
         last_drop_time = time.ticks_ms()  # Update the last drop time
 
+def clear_full_rows():
+    """Clears full rows and shifts the rows above down."""
+    global grid
+    rows_to_clear = []
+    
+    # Check for full rows
+    for y in range(GRID_SIZE):
+        if all(grid[y][x] != empty for x in range(GRID_SIZE)):
+            rows_to_clear.append(y)
+    
+    # Clear the full rows and shift rows down
+    for row in rows_to_clear:
+        del grid[row]
+        grid.insert(0, [empty for _ in range(GRID_SIZE)])
+
+
 def lock_piece():
     """Locks the current piece in the grid and marks the occupied spaces with its color."""
     for x, y in current_piece["shape"]:
         grid[current_piece["y"] + y][current_piece["x"] + x] = current_piece["color"]
-
+    
+    clear_full_rows()
+    
 def spawn_new_piece():
     """Spawns a new random piece at the top."""
     global current_piece
@@ -184,9 +215,9 @@ while True:
 
     # Button movement logic
     if cu.is_pressed(CosmicUnicorn.SWITCH_A):
-        move_left()
-    if cu.is_pressed(CosmicUnicorn.SWITCH_B):
         move_right()
+    if cu.is_pressed(CosmicUnicorn.SWITCH_B):
+        move_left()
     if cu.is_pressed(CosmicUnicorn.SWITCH_C):
         handle_rotate()
     if cu.is_pressed(CosmicUnicorn.SWITCH_D):
