@@ -256,5 +256,3 @@ while True:
 
     cu.update(graphics)
     time.sleep(0.05)
-
-
